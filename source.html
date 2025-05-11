@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aurora Simulation</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            max-width: 300px;
+            transition: all 0.3s ease;
+        }
+        #controls.hidden {
+            transform: translateX(-320px);
+        }
+        #toggleControls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px;
+            cursor: pointer;
+            z-index: 100;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .color-picker {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .color-picker input {
+            margin-left: 10px;
+        }
+    </style>
+
+<base target="_self">
+
+
+    <button id="toggleControls">☰ Controls</button>
+    <div id="controls">
+        <div class="control-group">
+            <h3>Aurora Settings</h3>
+            <label for="waveSpeed">Wave Speed</label>
+            <input type="range" id="waveSpeed" min="0.1" max="2" step="0.1" value="0.5">
+            
+            <label for="waveHeight">Wave Height</label>
+            <input type="range" id="waveHeight" min="0.1" max="5" step="0.1" value="2">
+            
+            <label for="particleCount">Particle Density</label>
+            <input type="range" id="particleCount" min="1000" max="10000" step="500" value="5000">
+        </div>
+        
+        <div class="control-group">
+            <h3>Colors</h3>
+            <div class="color-picker">
+                <label for="color1">Primary:</label>
+                <input type="color" id="color1" value="#00ffcc">
+            </div>
+            <div class="color-picker">
+                <label for="color2">Secondary:</label>
+                <input type="color" id="color2" value="#ff00cc">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Environment</h3>
+            <label for="starDensity">Star Density</label>
+            <input type="range" id="starDensity" min="100" max="2000" step="100" value="1000">
+            
+            <label for="timeOfDay">Time of Day</label>
+            <input type="range" id="timeOfDay" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        
+        <div class="control-group">
+            <button id="randomize">Randomize</button>
+            <button id="reset">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        // Scene setup
+        let scene, camera, renderer;
+        let particles, stars;
+        let mouseX = 0, mouseY = 0;
+        let time = 0;
+        
+        // Parameters
+        const params = {
+            waveSpeed: 0.5,
+            waveHeight: 2,
+            particleCount: 5000,
+            color1: '#00ffcc',
+            color2: '#ff00cc',
+            starDensity: 1000,
+            timeOfDay: 0.5
+        };
+        
+        // Initialize Three.js
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 30;
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+            
+            // Create aurora particles
+            createAurora();
+            
+            // Create stars
+            createStars();
+            
+            // Event listeners
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('mousemove', onMouseMove);
+            
+            // UI controls
+            setupControls();
+            
+            // Start animation loop
+            animate();
+        }
+        
+        function createAurora() {
+            if (particles) {
+                scene.remove(particles);
+                particles.geometry.dispose();
+                particles.material.dispose();
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(params.particleCount * 3);
+            const colors = new Float32Array(params.particleCount * 3);
+            
+            const color1 = new THREE.Color(params.color1);
+            const color2 = new THREE.Color(params.color2);
+            
+            for (let i = 0; i < params.particleCount; i++) {
+                const i3 = i * 3;
+                
+                // Position particles in a curved plane
+                const x = (Math.random() - 0.5) * 50;
+                const y = (Math.random() - 0.5) * 20 - 10;
+                const z = Math.random() * -10;
+                
+                positions[i3] = x;
+                positions[i3 + 1] = y;
+                positions[i3 + 2] = z;
+                
+                // Color gradient
+                const t = Math.random();
+                const color = color1.clone().lerp(color2, t);
+                
+                colors[i3] = color.r;
+                colors[i3 + 1] = color.g;
+                colors[i3 + 2] = color.b;
+            }
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            
+            const material = new THREE.PointsMaterial({
+                size: 0.1,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending
+            });
+            
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+        }
+        
+        function createStars() {
+            if (stars) {
+                scene.remove(stars);
+                stars.geometry.dispose();
+                stars.material.dispose();
+            }
+            
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(params.starDensity * 3);
+            
+            for (let i = 0; i < params.starDensity; i++) {
+                const i3 = i * 3;
+                
+                positions[i3] = (Math.random() - 0.5) * 2000;
+                positions[i3 + 1] = (Math.random() - 0.5) * 2000;
+                positions[i3 + 2] = (Math.random() - 0.5) * 2000;
+            }
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const material = new THREE.PointsMaterial({
+                size: 0.5,
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            stars = new THREE.Points(geometry, material);
+            scene.add(stars);
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function onMouseMove(event) {
+            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+        
+        function setupControls() {
+            // Toggle controls panel
+            document.getElementById('toggleControls').addEventListener('click', () => {
+                document.getElementById('controls').classList.toggle('hidden');
+            });
+            
+            // Wave speed
+            document.getElementById('waveSpeed').addEventListener('input', (e) => {
+                params.waveSpeed = parseFloat(e.target.value);
+            });
+            
+            // Wave height
+            document.getElementById('waveHeight').addEventListener('input', (e) => {
+                params.waveHeight = parseFloat(e.target.value);
+            });
+            
+            // Particle count
+            document.getElementById('particleCount').addEventListener('input', (e) => {
+                params.particleCount = parseInt(e.target.value);
+                createAurora();
+            });
+            
+            // Colors
+            document.getElementById('color1').addEventListener('input', (e) => {
+                params.color1 = e.target.value;
+                createAurora();
+            });
+            
+            document.getElementById('color2').addEventListener('input', (e) => {
+                params.color2 = e.target.value;
+                createAurora();
+            });
+            
+            // Star density
+            document.getElementById('starDensity').addEventListener('input', (e) => {
+                params.starDensity = parseInt(e.target.value);
+                createStars();
+            });
+            
+            // Time of day
+            document.getElementById('timeOfDay').addEventListener('input', (e) => {
+                params.timeOfDay = parseFloat(e.target.value);
+            });
+            
+            // Randomize
+            document.getElementById('randomize').addEventListener('click', () => {
+                params.waveSpeed = Math.random() * 1.9 + 0.1;
+                params.waveHeight = Math.random() * 4.9 + 0.1;
+                params.particleCount = Math.floor(Math.random() * 9000) + 1000;
+                params.color1 = `#${Math.floor(Math.random()*16777215).toString(16)}`;
+                params.color2 = `#${Math.floor(Math.random()*16777215).toString(16)}`;
+                params.starDensity = Math.floor(Math.random() * 1900) + 100;
+                params.timeOfDay = Math.random();
+                
+                // Update UI controls
+                document.getElementById('waveSpeed').value = params.waveSpeed;
+                document.getElementById('waveHeight').value = params.waveHeight;
+                document.getElementById('particleCount').value = params.particleCount;
+                document.getElementById('color1').value = params.color1;
+                document.getElementById('color2').value = params.color2;
+                document.getElementById('starDensity').value = params.starDensity;
+                document.getElementById('timeOfDay').value = params.timeOfDay;
+                
+                createAurora();
+                createStars();
+            });
+            
+            // Reset
+            document.getElementById('reset').addEventListener('click', () => {
+                params.waveSpeed = 0.5;
+                params.waveHeight = 2;
+                params.particleCount = 5000;
+                params.color1 = '#00ffcc';
+                params.color2 = '#ff00cc';
+                params.starDensity = 1000;
+                params.timeOfDay = 0.5;
+                
+                // Update UI controls
+                document.getElementById('waveSpeed').value = params.waveSpeed;
+                document.getElementById('waveHeight').value = params.waveHeight;
+                document.getElementById('particleCount').value = params.particleCount;
+                document.getElementById('color1').value = params.color1;
+                document.getElementById('color2').value = params.color2;
+                document.getElementById('starDensity').value = params.starDensity;
+                document.getElementById('timeOfDay').value = params.timeOfDay;
+                
+                createAurora();
+                createStars();
+            });
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01 * params.waveSpeed;
+            
+            // Animate aurora
+            if (particles) {
+                const positions = particles.geometry.attributes.position.array;
+                
+                for (let i = 0; i < params.particleCount; i++) {
+                    const i3 = i * 3;
+                    const x = positions[i3];
+                    const z = positions[i3 + 2];
+                    
+                    // Wave motion
+                    positions[i3 + 1] += Math.sin(time + x * 0.1 + z * 0.05) * 0.05 * params.waveHeight;
+                    
+                    // Mouse interaction
+                    const dx = x - mouseX * 30;
+                    const dz = z - mouseY * 30;
+                    const distance = Math.sqrt(dx * dx + dz * dz);
+                    
+                    if (distance < 10) {
+                        positions[i3 + 1] += (10 - distance) * 0.1;
+                    }
+                }
+                
+                particles.geometry.attributes.position.needsUpdate = true;
+            }
+            
+            // Time of day effect (background color)
+            const bgColor = new THREE.Color(0x000000).lerp(new THREE.Color(0x001133), params.timeOfDay);
+            renderer.setClearColor(bgColor);
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Start the application
+        init();
+    </script>
+
+              
+          
+                
+          
+              
